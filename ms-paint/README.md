@@ -66,7 +66,7 @@ python bar_pixel_widget.py
 
 `bar_pixel_widget.py` does exactly this:
 - reads each frame PNG
-- resizes to a BAR display grid (`DISPLAY_WIDTH`, `DISPLAY_HEIGHT`, default `256x256`)
+- resizes to a BAR display grid (`DISPLAY_WIDTH`, `DISPLAY_HEIGHT`, default `36x28`)
 - builds a render mask from either:
   - `PIXEL_SOURCE_MODE = 'edges'` (Canny edge detection), or
   - `PIXEL_SOURCE_MODE = 'binary'` (thresholded grayscale)
@@ -74,8 +74,14 @@ python bar_pixel_widget.py
 - for mask pixels that are ON, adds one `give` command at the mapped BAR `x,y`
 - writes a widget file at `bar-commands/cmd_bad_apple_pixels.lua`
 - appends the same per-frame update loop (clear team units, wait, then spawn commands with pacing)
-- optional debug preview mode (`DEBUG_SAVE_PREVIEW_PNGS = True`) saves per-frame preview PNGs (resized + mask) to `bar-commands/debug-previews/`
-- after generation, it can also build a preview video at `bar-commands/debug-previews.mp4`
+- optional debug preview mode (`DEBUG_SAVE_PREVIEW_PNGS = True`) saves per-frame preview PNGs to `DEBUG_PREVIEW_DIR`
+- after generation, it can also build a preview video at `DEBUG_VIDEO_OUTPUT_PATH`
+
+Current defaults in `bar_pixel_widget.py`:
+- `BAR_OUTPUT_DIR = C:/Users/malco/AppData/Local/Programs/Beyond-All-Reason/data/LuaUI/Widgets`
+- widget `enabled = false` so it will not auto-start on load
+- `DISPLAY_WIDTH = 36`, `DISPLAY_HEIGHT = 28`
+- consistent frame timing via `BAR_WIDGET_FRAME_COMMAND_TICKS` (commands for each frame are distributed across a fixed number of game ticks)
 
 ## Resolution tuning suggestions
 

@@ -9,8 +9,8 @@ FRAMES = 4383
 FRAME_STEP = 3
 
 # BAR display resolution (simple pixel-grid approach)
-DISPLAY_WIDTH = 256
-DISPLAY_HEIGHT = 256
+DISPLAY_WIDTH = 36
+DISPLAY_HEIGHT = 28
 
 # BAR map mapping
 BAR_MAP_WIDTH = 12000
@@ -32,11 +32,12 @@ CANNY_THRESHOLD_2 = 180
 EDGE_RESIZE_INTERPOLATION = cv2.INTER_NEAREST
 
 # Widget output / pacing
-BAR_OUTPUT_DIR = Path('bar-commands')
+BAR_OUTPUT_DIR = Path('C:/Users/malco/AppData/Local/Programs/Beyond-All-Reason/data/LuaUI/Widgets')
 BAR_WIDGET_OUTPUT_PATH = BAR_OUTPUT_DIR / 'cmd_bad_apple_pixels.lua'
 BAR_WIDGET_COMMANDS_PER_TICK = 12
 BAR_WIDGET_FRAME_GAP = 1
 BAR_WIDGET_CLEAR_WAIT_FRAMES = 12
+BAR_WIDGET_FRAME_COMMAND_TICKS = 10
 
 # Debug preview outputs (for tuning thresholds/resolution)
 DEBUG_SAVE_PREVIEW_PNGS = True
@@ -161,13 +162,14 @@ def write_pixel_widget():
         '    desc = "Plays rasterized pixel frames using give commands",',
         '    author = "bad-apple script",',
         '    layer = 0,',
-        '    enabled = true',
+        '    enabled = false',
         '  }',
         'end',
         '',
         f'local COMMANDS_PER_TICK = {BAR_WIDGET_COMMANDS_PER_TICK}',
         f'local FRAME_GAP = {BAR_WIDGET_FRAME_GAP}',
         f'local CLEAR_WAIT_FRAMES = {BAR_WIDGET_CLEAR_WAIT_FRAMES}',
+        f'local FRAME_COMMAND_TICKS = {BAR_WIDGET_FRAME_COMMAND_TICKS}',
         f'local TARGET_TEAM = {BAR_TEAM}',
         'local frames = {'
     ]
@@ -192,6 +194,7 @@ def write_pixel_widget():
         'local gapCounter = 0',
         'local clearWaitCounter = 0',
         'local clearedFrame = false',
+        'local frameCommandTick = 0',
         '',
         'local function selfDestructTeamUnits(teamID)',
         '  local units = Spring.GetAllUnits()',
@@ -232,18 +235,21 @@ def write_pixel_widget():
         '    return',
         '  end',
         '',
+        '  local requiredPerTick = math.max(COMMANDS_PER_TICK, math.ceil(#commands / math.max(1, FRAME_COMMAND_TICKS)))',
         '  local sent = 0',
-        '  while commandIndex <= #commands and sent < COMMANDS_PER_TICK do',
+        '  while commandIndex <= #commands and sent < requiredPerTick do',
         '    Spring.SendCommands(commands[commandIndex])',
         '    commandIndex = commandIndex + 1',
         '    sent = sent + 1',
         '  end',
+        '  frameCommandTick = frameCommandTick + 1',
         '',
-        '  if commandIndex > #commands then',
+        '  if frameCommandTick >= FRAME_COMMAND_TICKS then',
         '    frameIndex = frameIndex + 1',
         '    commandIndex = 1',
         '    gapCounter = FRAME_GAP',
         '    clearedFrame = false',
+        '    frameCommandTick = 0',
         '  end',
         'end',
         ''
