@@ -75,6 +75,8 @@ python bar_pixel_widget.py
 - for selected pixels, adds one `give` command at the mapped BAR `x,y`
 - writes a widget file at `bar-commands/cmd_bad_apple_pixels.lua`
 - appends the same per-frame update loop (clear team units, wait, then spawn commands with pacing)
+- optional debug preview mode (`DEBUG_SAVE_PREVIEW_PNGS = True`) saves per-frame preview PNGs (resized + mask) to `bar-commands/debug-previews/`
+- after generation, it can also build a preview video at `bar-commands/debug-previews.mp4`
 
 ## Resolution tuning suggestions
 
