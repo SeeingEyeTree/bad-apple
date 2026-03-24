@@ -67,7 +67,9 @@ python bar_pixel_widget.py
 `bar_pixel_widget.py` does exactly this:
 - reads each frame PNG
 - resizes to a BAR display grid (`DISPLAY_WIDTH`, `DISPLAY_HEIGHT`, default `256x256`)
-- for every resized pixel where value `> PIXEL_THRESHOLD`, adds one `give` command at the mapped BAR `x,y`
+- counts ON (`> PIXEL_THRESHOLD`) and OFF (`<= PIXEL_THRESHOLD`) pixels
+- by default (`PIXEL_RENDER_MODE = 'minority'`), renders whichever side has fewer pixels to reduce command count
+- for selected pixels, adds one `give` command at the mapped BAR `x,y`
 - writes a widget file at `bar-commands/cmd_bad_apple_pixels.lua`
 - appends the same per-frame update loop (clear team units, wait, then spawn commands with pacing)
 
