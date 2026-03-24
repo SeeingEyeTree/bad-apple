@@ -16,7 +16,7 @@ colours = {
 
 WIDTH = 480
 HEIGHT = 360
-FRAMES = 5258
+FRAMES = 4383
 FPS = 24
 
 BASE_PNG_DIR = 'pngs'
@@ -30,8 +30,8 @@ RENDER_MODE = 'bar_widget'
 FRAME_STEP = 3
 
 # Beyond All Reason / Full Metal Plate tuning.
-BAR_MAP_WIDTH = 120000
-BAR_MAP_HEIGHT = 120000
+BAR_MAP_WIDTH = 12000
+BAR_MAP_HEIGHT = 12000
 BAR_TEAM = 2
 BAR_UNIT = 'corsktl'
 BAR_Y = 10

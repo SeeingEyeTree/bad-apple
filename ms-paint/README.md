@@ -70,9 +70,8 @@ python bar_pixel_widget.py
 - builds a render mask from either:
   - `PIXEL_SOURCE_MODE = 'edges'` (Canny edge detection), or
   - `PIXEL_SOURCE_MODE = 'binary'` (thresholded grayscale)
-- counts ON and OFF pixels in the selected render mask
-- by default (`PIXEL_RENDER_MODE = 'minority'`), renders whichever side has fewer pixels to reduce command count
-- for selected pixels, adds one `give` command at the mapped BAR `x,y`
+- in edge mode, it detects edges on the full-size image first, then downsamples the edge mask
+- for mask pixels that are ON, adds one `give` command at the mapped BAR `x,y`
 - writes a widget file at `bar-commands/cmd_bad_apple_pixels.lua`
 - appends the same per-frame update loop (clear team units, wait, then spawn commands with pacing)
 - optional debug preview mode (`DEBUG_SAVE_PREVIEW_PNGS = True`) saves per-frame preview PNGs (resized + mask) to `bar-commands/debug-previews/`
@@ -83,6 +82,6 @@ python bar_pixel_widget.py
 If the image is recognizable but too rough:
 
 - Keep `SAMPLING_METHOD = 'uniform_arclength'` for smoother spacing along contours.
-- Keep `BAR_POINT_SPACING_MODE = 'map'` so spacing scales correctly when using large maps (for example `BAR_MAP_WIDTH = 120000`).
+- Keep `BAR_POINT_SPACING_MODE = 'map'` so spacing scales correctly when using large maps (for example `BAR_MAP_WIDTH = 12000`).
 - Decrease `BAR_POINT_SPACING` (for example `280 -> 220 -> 180`) to increase visual detail.
 - Keep `CONTOUR_CHAIN_MODE = cv2.CHAIN_APPROX_NONE` and `CONTOUR_APPROX_EPSILON = 0.0` for max contour detail.

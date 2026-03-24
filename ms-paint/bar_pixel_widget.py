@@ -5,7 +5,7 @@ import cv2
 # Input video frames
 BASE_PNG_DIR = 'pngs'
 BASE_PNG_PATH = BASE_PNG_DIR + '/png%d.png'
-FRAMES = 5258
+FRAMES = 4383
 FRAME_STEP = 3
 
 # BAR display resolution (simple pixel-grid approach)
@@ -13,8 +13,8 @@ DISPLAY_WIDTH = 256
 DISPLAY_HEIGHT = 256
 
 # BAR map mapping
-BAR_MAP_WIDTH = 120000
-BAR_MAP_HEIGHT = 120000
+BAR_MAP_WIDTH = 12000
+BAR_MAP_HEIGHT = 12000
 BAR_MARGIN = 300
 BAR_OFFSET_X = 0
 BAR_OFFSET_Y = 0
@@ -29,8 +29,7 @@ INTERPOLATION = cv2.INTER_AREA
 PIXEL_SOURCE_MODE = 'edges'  # 'edges' or 'binary'
 CANNY_THRESHOLD_1 = 80
 CANNY_THRESHOLD_2 = 180
-PIXEL_RENDER_MODE = 'minority'  # 'minority', 'on', 'off'
-PREFER_ON_TIE = True
+EDGE_RESIZE_INTERPOLATION = cv2.INTER_NEAREST
 
 # Widget output / pacing
 BAR_OUTPUT_DIR = Path('bar-commands')
@@ -63,19 +62,7 @@ def build_preview_image(resized, source_mask):
     resized_bgr = cv2.cvtColor(resized, cv2.COLOR_GRAY2BGR)
     mask_img = (source_mask.astype('uint8')) * 255
     mask_bgr = cv2.cvtColor(mask_img, cv2.COLOR_GRAY2BGR)
-    combined = cv2.hconcat([resized_bgr, mask_bgr])
-    cv2.putText(combined, 'resized', (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
-    cv2.putText(
-        combined,
-        f'mask: {PIXEL_SOURCE_MODE}',
-        (resized.shape[1] + 10, 24),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (0, 255, 0),
-        2,
-        cv2.LINE_AA
-    )
-    return combined
+    return cv2.hconcat([resized_bgr, mask_bgr])
 
 
 def write_preview_video(preview_paths):
@@ -117,41 +104,30 @@ def build_frame_commands(frame):
     if image is None:
         raise FileNotFoundError(f'Could not read frame image: {BASE_PNG_PATH % (frame + 1)}')
 
-    resized = cv2.resize(image, (DISPLAY_WIDTH, DISPLAY_HEIGHT), interpolation=INTERPOLATION)
-
     if PIXEL_SOURCE_MODE == 'edges':
-        source_mask = cv2.Canny(resized, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2) > 0
+        # Detect edges at the source resolution first, then scale the edge mask down.
+        edges_full = cv2.Canny(image, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2)
+        source_mask = cv2.resize(
+            edges_full,
+            (DISPLAY_WIDTH, DISPLAY_HEIGHT),
+            interpolation=EDGE_RESIZE_INTERPOLATION
+        ) > 0
+        resized = cv2.resize(image, (DISPLAY_WIDTH, DISPLAY_HEIGHT), interpolation=INTERPOLATION)
     elif PIXEL_SOURCE_MODE == 'binary':
+        resized = cv2.resize(image, (DISPLAY_WIDTH, DISPLAY_HEIGHT), interpolation=INTERPOLATION)
         source_mask = resized > PIXEL_THRESHOLD
     else:
         raise ValueError(f'Unknown PIXEL_SOURCE_MODE: {PIXEL_SOURCE_MODE}')
-
-    on_count = int(source_mask.sum())
-    off_count = DISPLAY_WIDTH * DISPLAY_HEIGHT - on_count
-
-    if PIXEL_RENDER_MODE == 'on':
-        render_on = True
-    elif PIXEL_RENDER_MODE == 'off':
-        render_on = False
-    elif PIXEL_RENDER_MODE == 'minority':
-        if on_count < off_count:
-            render_on = True
-        elif off_count < on_count:
-            render_on = False
-        else:
-            render_on = PREFER_ON_TIE
-    else:
-        raise ValueError(f'Unknown PIXEL_RENDER_MODE: {PIXEL_RENDER_MODE}')
 
     commands = []
     for y in range(DISPLAY_HEIGHT):
         for x in range(DISPLAY_WIDTH):
             is_on = bool(source_mask[y, x])
-            if is_on == render_on:
+            if is_on:
                 map_x, map_y = pixel_to_bar(x, y)
                 commands.append(f'{BAR_COMMAND_PREFIX}give 1 {BAR_UNIT} {BAR_TEAM} @{map_x},{BAR_Y},{map_y}')
 
-    return commands, on_count, off_count, render_on, resized, source_mask
+    return commands, resized, source_mask
 
 
 def write_pixel_widget():
@@ -161,21 +137,13 @@ def write_pixel_widget():
 
     frames = []
     preview_paths = []
-    total_on = 0
-    total_off = 0
     total_rendered = 0
     for frame in range(0, FRAMES, FRAME_STEP):
-        commands, on_count, off_count, render_on, resized, source_mask = build_frame_commands(frame)
-        total_on += on_count
-        total_off += off_count
+        commands, resized, source_mask = build_frame_commands(frame)
         if commands:
             frames.append((frame + 1, commands))
             total_rendered += len(commands)
-        mode_label = 'on' if render_on else 'off'
-        print(
-            f'frame {frame + 1}: on={on_count} off={off_count} '
-            f'render={mode_label} commands={len(commands)}'
-        )
+        print(f'frame {frame + 1}: edge-commands={len(commands)}')
 
         if DEBUG_SAVE_PREVIEW_PNGS:
             preview_image = build_preview_image(resized, source_mask)
@@ -286,7 +254,7 @@ def write_pixel_widget():
     total_commands = sum(len(commands) for _, commands in frames)
     print(
         f'wrote {BAR_WIDGET_OUTPUT_PATH} ({len(frames)} frames, {total_commands} commands, '
-        f'total_on={total_on}, total_off={total_off}, total_rendered={total_rendered})'
+        f'total_rendered={total_rendered})'
     )
 
     if DEBUG_SAVE_PREVIEW_PNGS:
