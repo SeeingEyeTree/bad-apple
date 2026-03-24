@@ -21,6 +21,7 @@ Important tuning variables in `main.py`:
 - `BAR_OFFSET_X` / `BAR_OFFSET_Y`: shifts the entire drawing on the map.
 - `BAR_WIDGET_COMMANDS_PER_TICK`: how many `/give` commands the generated widget runs per game tick.
 - `BAR_WIDGET_FRAME_GAP`: game ticks to wait between frame transitions in the generated widget.
+- `BAR_WIDGET_CLEAR_WAIT_FRAMES`: game frames to wait after self-destruct and before spawning the next frame.
 - `FRAME_STEP`: skips frames for faster experiments.
 - `BAR_MAP_WIDTH` / `BAR_MAP_HEIGHT`: target map dimensions.
 - `BAR_CANVAS_TOP_LEFT` / `BAR_CANVAS_BOTTOM_RIGHT`: optional explicit canvas corners.
@@ -43,3 +44,9 @@ python main.py
 When `RENDER_MODE = 'bar'`, the script writes command files and does not use mouse automation.
 
 When `RENDER_MODE = 'bar_widget'`, copy `bar-commands/cmd_bad_apple.lua` into your BAR widgets folder and load it in-game.
+
+The generated widget now does a per-frame clear pass:
+- calls `Spring.GetAllUnits()`
+- self-destructs only units on team `BAR_TEAM` (default team 2)
+- waits `BAR_WIDGET_CLEAR_WAIT_FRAMES`
+- then starts issuing `/give` commands for the new frame

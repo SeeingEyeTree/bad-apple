@@ -41,6 +41,7 @@ BAR_MARGIN = 300
 BAR_WIDGET_OUTPUT_PATH = Path('bar-commands') / 'cmd_bad_apple.lua'
 BAR_WIDGET_COMMANDS_PER_TICK = 12
 BAR_WIDGET_FRAME_GAP = 1
+BAR_WIDGET_CLEAR_WAIT_FRAMES = 12
 
 # Per-map offsets can be adjusted if you want to shift the whole video.
 BAR_OFFSET_X = 0
@@ -242,6 +243,8 @@ def write_bar_widget():
         '',
         f'local COMMANDS_PER_TICK = {BAR_WIDGET_COMMANDS_PER_TICK}',
         f'local FRAME_GAP = {BAR_WIDGET_FRAME_GAP}',
+        f'local CLEAR_WAIT_FRAMES = {BAR_WIDGET_CLEAR_WAIT_FRAMES}',
+        f'local TARGET_TEAM = {BAR_TEAM}',
         'local frames = {'
     ]
 
@@ -263,6 +266,18 @@ def write_bar_widget():
         'local frameIndex = 1',
         'local commandIndex = 1',
         'local gapCounter = 0',
+        'local clearWaitCounter = 0',
+        'local clearedFrame = false',
+        '',
+        'local function selfDestructTeamUnits(teamID)',
+        '  local units = Spring.GetAllUnits()',
+        '  for i = 1, #units do',
+        '    local unitID = units[i]',
+        '    if Spring.GetUnitTeam(unitID) == teamID then',
+        '      Spring.GiveOrderToUnit(unitID, CMD.SELFD, {}, 0)',
+        '    end',
+        '  end',
+        'end',
         '',
         'function widget:Initialize()',
         '  Spring.Echo("BadAppleCommandRunner loaded: " .. tostring(#frameOrder) .. " frames")',
@@ -280,6 +295,19 @@ def write_bar_widget():
         '  end',
         '',
         '  local commands = frames[frameNumber]',
+        '',
+        '  if not clearedFrame then',
+        '    selfDestructTeamUnits(TARGET_TEAM)',
+        '    clearWaitCounter = CLEAR_WAIT_FRAMES',
+        '    clearedFrame = true',
+        '    return',
+        '  end',
+        '',
+        '  if clearWaitCounter > 0 then',
+        '    clearWaitCounter = clearWaitCounter - 1',
+        '    return',
+        '  end',
+        '',
         '  local sent = 0',
         '  while commandIndex <= #commands and sent < COMMANDS_PER_TICK do',
         '    Spring.SendCommands(commands[commandIndex])',
@@ -291,6 +319,7 @@ def write_bar_widget():
         '    frameIndex = frameIndex + 1',
         '    commandIndex = 1',
         '    gapCounter = FRAME_GAP',
+        '    clearedFrame = false',
         '  end',
         'end',
         ''
