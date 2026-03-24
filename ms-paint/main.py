@@ -19,8 +19,8 @@ HEIGHT = 360
 FRAMES = 5258
 FPS = 24
 
-BASE_PNG_DIR = 'frames'
-BASE_PNG_PATH = BASE_PNG_DIR + '/frame%d.png'
+BASE_PNG_DIR = 'pngs'
+BASE_PNG_PATH = BASE_PNG_DIR + '/png%d.png'
 
 # Rendering mode:
 # - 'paint': original mouse-drag approach.
@@ -30,14 +30,16 @@ RENDER_MODE = 'bar_widget'
 FRAME_STEP = 3
 
 # Beyond All Reason / Full Metal Plate tuning.
-BAR_MAP_WIDTH = 12000
-BAR_MAP_HEIGHT = 12000
+BAR_MAP_WIDTH = 120000
+BAR_MAP_HEIGHT = 120000
 BAR_TEAM = 2
 BAR_UNIT = 'corsktl'
 BAR_Y = 10
 BAR_OUTPUT_DIR = Path('bar-commands')
-BAR_POINT_SPACING = 24
+BAR_POINT_SPACING = 280
+BAR_POINT_SPACING_MODE = 'map'  # 'map' units or 'frame' pixels
 BAR_MARGIN = 300
+BAR_COMMAND_PREFIX = ''  # '' -> "give ...", '/' -> "/give ..."
 BAR_WIDGET_OUTPUT_PATH = Path('bar-commands') / 'cmd_bad_apple.lua'
 BAR_WIDGET_COMMANDS_PER_TICK = 12
 BAR_WIDGET_FRAME_GAP = 1
@@ -54,8 +56,10 @@ BAR_CANVAS_BOTTOM_RIGHT = (509, 45)
 BAR_USE_CANVAS_BOUNDS = False
 
 # Optional simplification before point sampling.
-CONTOUR_APPROX_EPSILON = 1.25
+CONTOUR_APPROX_EPSILON = 0.0
 BINARY_THRESHOLD = 100
+CONTOUR_CHAIN_MODE = cv2.CHAIN_APPROX_NONE
+SAMPLING_METHOD = 'uniform_arclength'  # 'uniform_arclength' or 'segment_steps'
 
 gui.PAUSE = 0.000000000001
 
@@ -117,7 +121,7 @@ def draw_matrix(matrix, prev):  # raster method
 def load_contours(frame):
     img = cv2.imread(BASE_PNG_PATH % (frame + 1), 0)
     _, binary = cv2.threshold(img, BINARY_THRESHOLD, 255, cv2.THRESH_BINARY_INV)
-    contours, _ = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(binary, cv2.RETR_TREE, CONTOUR_CHAIN_MODE)
     return contours
 
 
@@ -149,17 +153,104 @@ def sample_line_points(start, end, spacing):
     return points
 
 
+def to_world_delta(dx_px, dy_px):
+    if BAR_USE_CANVAS_BOUNDS:
+        min_x = min(BAR_CANVAS_TOP_LEFT[0], BAR_CANVAS_BOTTOM_RIGHT[0])
+        max_x = max(BAR_CANVAS_TOP_LEFT[0], BAR_CANVAS_BOTTOM_RIGHT[0])
+        min_y = min(BAR_CANVAS_TOP_LEFT[1], BAR_CANVAS_BOTTOM_RIGHT[1])
+        max_y = max(BAR_CANVAS_TOP_LEFT[1], BAR_CANVAS_BOTTOM_RIGHT[1])
+        usable_width = max_x - min_x
+        usable_height = max_y - min_y
+    else:
+        usable_width = BAR_MAP_WIDTH - 2 * BAR_MARGIN
+        usable_height = BAR_MAP_HEIGHT - 2 * BAR_MARGIN
+
+    scale_x = usable_width / max(1, WIDTH - 1)
+    scale_y = usable_height / max(1, HEIGHT - 1)
+    return dx_px * scale_x, dy_px * scale_y
+
+
+def resolve_frame_spacing():
+    if BAR_POINT_SPACING_MODE == 'frame':
+        return max(0.1, BAR_POINT_SPACING)
+    if BAR_POINT_SPACING_MODE == 'map':
+        dx_world, _ = to_world_delta(1, 0)
+        _, dy_world = to_world_delta(0, 1)
+        px_scale = max(0.001, (abs(dx_world) + abs(dy_world)) / 2.0)
+        return max(0.1, BAR_POINT_SPACING / px_scale)
+    raise ValueError(f'Unknown BAR_POINT_SPACING_MODE: {BAR_POINT_SPACING_MODE}')
+
+
+def sample_closed_polyline_uniform(points, spacing):
+    if len(points) < 2:
+        return points
+
+    chain = points + [points[0]]
+    segments = []
+    total_length = 0.0
+    for i in range(len(chain) - 1):
+        ax, ay = chain[i]
+        bx, by = chain[i + 1]
+        length = math.hypot(bx - ax, by - ay)
+        if length == 0:
+            continue
+        segments.append((ax, ay, bx, by, length))
+        total_length += length
+
+    if total_length == 0:
+        return [points[0]]
+
+    sample_count = max(3, int(math.ceil(total_length / spacing)))
+    step = total_length / sample_count
+
+    sampled = []
+    target_distance = 0.0
+    seg_idx = 0
+    seg_progress = 0.0
+
+    for _ in range(sample_count):
+        while seg_idx < len(segments):
+            ax, ay, bx, by, seg_length = segments[seg_idx]
+            remaining = seg_length - seg_progress
+            if target_distance <= remaining:
+                t = (seg_progress + target_distance) / seg_length
+                x = int(round(ax + (bx - ax) * t))
+                y = int(round(ay + (by - ay) * t))
+                point = (x, y)
+                if not sampled or sampled[-1] != point:
+                    sampled.append(point)
+                seg_progress += target_distance
+                target_distance = step
+                break
+            target_distance -= remaining
+            seg_idx += 1
+            seg_progress = 0.0
+        if seg_idx >= len(segments):
+            break
+
+    return sampled
+
+
 def iter_sampled_contour_points(contour, spacing):
     points = simplify_contour(contour)
     if not points:
         return
 
-    prev = points[0]
-    yield prev
-    for point in points[1:] + [points[0]]:
-        for sampled_point in sample_line_points(prev, point, spacing)[1:]:
+    if SAMPLING_METHOD == 'uniform_arclength':
+        for sampled_point in sample_closed_polyline_uniform(points, spacing):
             yield sampled_point
-        prev = point
+        return
+
+    if SAMPLING_METHOD == 'segment_steps':
+        prev = points[0]
+        yield prev
+        for point in points[1:] + [points[0]]:
+            for sampled_point in sample_line_points(prev, point, spacing)[1:]:
+                yield sampled_point
+            prev = point
+        return
+
+    raise ValueError(f'Unknown SAMPLING_METHOD: {SAMPLING_METHOD}')
 
 
 def frame_to_bar(point):
@@ -191,12 +282,13 @@ def dedupe_consecutive(points):
 
 
 def build_frame_commands(frame):
+    frame_spacing = resolve_frame_spacing()
     commands = []
 
     for contour in load_contours(frame):
-        contour_points = [frame_to_bar(point) for point in iter_sampled_contour_points(contour, BAR_POINT_SPACING)]
+        contour_points = [frame_to_bar(point) for point in iter_sampled_contour_points(contour, frame_spacing)]
         for map_x, map_y in dedupe_consecutive(contour_points):
-            commands.append(f'/give 1 {BAR_UNIT} {BAR_TEAM} @{map_x},{BAR_Y},{map_y}')
+            commands.append(f'{BAR_COMMAND_PREFIX}give 1 {BAR_UNIT} {BAR_TEAM} @{map_x},{BAR_Y},{map_y}')
     return commands
 
 
