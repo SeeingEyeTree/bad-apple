@@ -26,6 +26,9 @@ BAR_COMMAND_PREFIX = ''  # '' -> "give", '/' -> "/give"
 # Frame extraction / thresholding
 PIXEL_THRESHOLD = 0  # if resized pixel > 0, emit a unit
 INTERPOLATION = cv2.INTER_AREA
+PIXEL_SOURCE_MODE = 'edges'  # 'edges' or 'binary'
+CANNY_THRESHOLD_1 = 80
+CANNY_THRESHOLD_2 = 180
 PIXEL_RENDER_MODE = 'minority'  # 'minority', 'on', 'off'
 PREFER_ON_TIE = True
 
@@ -57,15 +60,15 @@ def build_frame_commands(frame):
 
     resized = cv2.resize(image, (DISPLAY_WIDTH, DISPLAY_HEIGHT), interpolation=INTERPOLATION)
 
-    on_count = 0
-    off_count = 0
-    for y in range(DISPLAY_HEIGHT):
-        row = resized[y]
-        for x in range(DISPLAY_WIDTH):
-            if int(row[x]) > PIXEL_THRESHOLD:
-                on_count += 1
-            else:
-                off_count += 1
+    if PIXEL_SOURCE_MODE == 'edges':
+        source_mask = cv2.Canny(resized, CANNY_THRESHOLD_1, CANNY_THRESHOLD_2) > 0
+    elif PIXEL_SOURCE_MODE == 'binary':
+        source_mask = resized > PIXEL_THRESHOLD
+    else:
+        raise ValueError(f'Unknown PIXEL_SOURCE_MODE: {PIXEL_SOURCE_MODE}')
+
+    on_count = int(source_mask.sum())
+    off_count = DISPLAY_WIDTH * DISPLAY_HEIGHT - on_count
 
     if PIXEL_RENDER_MODE == 'on':
         render_on = True
@@ -83,9 +86,8 @@ def build_frame_commands(frame):
 
     commands = []
     for y in range(DISPLAY_HEIGHT):
-        row = resized[y]
         for x in range(DISPLAY_WIDTH):
-            is_on = int(row[x]) > PIXEL_THRESHOLD
+            is_on = bool(source_mask[y, x])
             if is_on == render_on:
                 map_x, map_y = pixel_to_bar(x, y)
                 commands.append(f'{BAR_COMMAND_PREFIX}give 1 {BAR_UNIT} {BAR_TEAM} @{map_x},{BAR_Y},{map_y}')

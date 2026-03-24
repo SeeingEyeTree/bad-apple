@@ -67,7 +67,10 @@ python bar_pixel_widget.py
 `bar_pixel_widget.py` does exactly this:
 - reads each frame PNG
 - resizes to a BAR display grid (`DISPLAY_WIDTH`, `DISPLAY_HEIGHT`, default `256x256`)
-- counts ON (`> PIXEL_THRESHOLD`) and OFF (`<= PIXEL_THRESHOLD`) pixels
+- builds a render mask from either:
+  - `PIXEL_SOURCE_MODE = 'edges'` (Canny edge detection), or
+  - `PIXEL_SOURCE_MODE = 'binary'` (thresholded grayscale)
+- counts ON and OFF pixels in the selected render mask
 - by default (`PIXEL_RENDER_MODE = 'minority'`), renders whichever side has fewer pixels to reduce command count
 - for selected pixels, adds one `give` command at the mapped BAR `x,y`
 - writes a widget file at `bar-commands/cmd_bad_apple_pixels.lua`
